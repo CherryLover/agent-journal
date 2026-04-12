@@ -1,5 +1,7 @@
 # Agent Journal
 
+[中文](README.zh.md)
+
 A local-first tool that reads session logs from Codex, Claude Code, and Kiro CLI, groups work by directory, and optionally asks an AI model to generate a daily outline and a weekly-ready summary.
 
 ## Supported tools
