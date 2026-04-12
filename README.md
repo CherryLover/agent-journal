@@ -23,24 +23,19 @@ A local-first prototype that reads Codex and Claude Code session logs from this 
 ## Run without AI summarization
 
 ```bash
-python3 /Users/jiangjiwei/Code/AI/agent-journal-mvp/journal_mvp.py \
-  --date 2026-03-11
+python3 journal_mvp.py --date 2026-03-11
 ```
 
 ## Run with AI summarization
 
 ```bash
-python3 /Users/jiangjiwei/Code/AI/agent-journal-mvp/journal_mvp.py \
-  --date 2026-03-11 \
-  --summarizer claude
+python3 journal_mvp.py --date 2026-03-11 --summarizer claude
 ```
 
 You can also switch to Codex:
 
 ```bash
-python3 /Users/jiangjiwei/Code/AI/agent-journal-mvp/journal_mvp.py \
-  --date 2026-03-11 \
-  --summarizer codex
+python3 journal_mvp.py --date 2026-03-11 --summarizer codex
 ```
 
 ## Output files

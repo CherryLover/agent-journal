@@ -1,19 +1,16 @@
 #!/bin/zsh
 set -euo pipefail
 
-PROJECT_DIR="/Users/jiangjiwei/Code/AI/agent-journal-mvp"
+PROJECT_DIR="$HOME/Code/AI/agent-journal-mvp"
 PYTHON_BIN="/opt/homebrew/bin/python3"
 LOG_DIR="$PROJECT_DIR/logs"
 LOG_FILE="$LOG_DIR/agent-journal.log"
 
-export HOME="/Users/jiangjiwei"
-export USER="jiangjiwei"
-export LOGNAME="jiangjiwei"
 export SHELL="/bin/zsh"
 export TZ="Asia/Shanghai"
 export LANG="zh_CN.UTF-8"
 export LC_ALL="zh_CN.UTF-8"
-export PATH="/Users/jiangjiwei/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 set +e
 set +u
