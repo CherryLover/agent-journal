@@ -1,50 +1,64 @@
-# Agent Journal MVP
+# Agent Journal
 
-A local-first prototype that reads Codex and Claude Code session logs from this machine, groups work by directory, and optionally asks an AI model to generate both a daily outline and a weekly-ready summary.
+A local-first tool that reads session logs from Codex, Claude Code, and Kiro CLI, groups work by directory, and optionally asks an AI model to generate a daily outline and a weekly-ready summary.
 
-## Data sources
+## Supported tools
 
-- `~/.codex/state_5.sqlite`
-- `~/.codex/sessions/**/*.jsonl`
-- `~/.claude/history.jsonl`
-- `~/.claude/projects/**/*.jsonl`
+| Tool | Log location |
+|------|-------------|
+| **Codex** | `~/.codex/state_5.sqlite` + `~/.codex/sessions/**/*.jsonl` |
+| **Claude Code** | `~/.claude/history.jsonl` + `~/.claude/projects/**/*.jsonl` |
+| **Kiro CLI** | `~/.kiro/sessions/cli/*.json` + `~/.kiro/sessions/cli/*.jsonl` |
+
+Codex and Claude Code store token counts; Kiro uses a credit system — both are shown in the report.
 
 ## What it does
 
-- exports real user / assistant chat records
-- groups repeated sessions by `cwd`
-- keeps tool usage and approximate token counts
-- optionally asks `codex` or `claude` to generate:
-  - a compressed daily outline from real chat logs
+- reads real user / assistant chat records from all three tools
+- groups sessions by working directory (`cwd`)
+- tracks tool usage, approximate token counts, and Kiro credits
+- optionally asks `claude` or `codex` to generate:
+  - a compressed daily outline (from real chat logs)
   - a weekly-ready summary (directory-grouped, condensed)
-- writes only 2 final result files per day
-- cleans intermediate files after the final files are produced
+- writes 2 final Markdown files per day
 
-## Run without AI summarization
+## Usage
+
+**Without AI summarization** (just collect and export):
 
 ```bash
 python3 journal_mvp.py --date 2026-03-11
 ```
 
-## Run with AI summarization
+**With AI summarization:**
 
 ```bash
 python3 journal_mvp.py --date 2026-03-11 --summarizer claude
-```
-
-You can also switch to Codex:
-
-```bash
+# or
 python3 journal_mvp.py --date 2026-03-11 --summarizer codex
 ```
 
-## Output files
+**All options:**
 
-By default the script writes these final files under `~/Documents/ObCc/01_Journal/Agent_Journal/`:
+```
+--date          Target date in YYYY-MM-DD format (required)
+--summarizer    none | claude | codex  (default: none)
+--summary-model Optional model name for the summarizer
+--result-dir    Output directory for final Markdown files
+--timezone      IANA timezone string (default: Asia/Shanghai)
+--home          Home directory to read logs from (default: ~)
+```
 
-- `~/Documents/ObCc/01_Journal/Agent_Journal/<date>_outline.md` - final daily outline
-- `~/Documents/ObCc/01_Journal/Agent_Journal/<date>_weekly-read.md` - final weekly review material
+## Output
 
-Intermediate files such as transcript exports or `sessions.json` may be created temporarily during generation, but they are removed after the final files are written.
+By default the script writes to `~/Documents/ObCc/01_Journal/Agent_Journal/`. To use a different directory, pass `--result-dir`:
 
-The script assumes `Asia/Shanghai` by default and reads logs from the current user's home directory.
+```bash
+python3 journal_mvp.py --date 2026-03-11 --summarizer claude \
+  --result-dir ~/my-journal
+```
+
+Two files are written per day:
+
+- `<date>_outline.md` — daily outline
+- `<date>_weekly-read.md` — weekly review material
