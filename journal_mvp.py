@@ -6,6 +6,7 @@ import json
 import shutil
 import sqlite3
 import subprocess
+import sys
 import tempfile
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -841,12 +842,59 @@ def render_timeline_source(report: DailyReport) -> str:
     return '\n'.join(lines).strip() + '\n'
 
 
-def build_daily_outline_prompt(report: DailyReport, timeline_source: str) -> str:
-    return f"""你是我的工作日志压缩助手。请只根据下面这些来自 Codex 和 Claude Code 的真实聊天记录，先产出一份“适合写个人工作日记的提纲”，日期是 {report.report_date.isoformat()}。\n\n目标：\n- 先把原始聊天记录压缩成少量主线和少量次要事项。\n- 不只提炼“做了什么”，还要提炼“今天的判断、思路变化、方向感”。\n- 这一步不是正式日记，而是给正式日记做素材压缩。\n\n要求：\n1. 使用中文 Markdown 输出，直接从标题开始，不要写“好的，我来整理”“让我分析一下”之类的开场白。\n2. 只保留当天最重要的 2 到 4 条主线；其余事情放到“顺手处理”和“未收尾”里，一条一句话。\n3. 不要按早上/下午/晚上平铺叙述，也不要变成流水账；优先按“今天主要围绕哪几件事打转”来归并。\n4. 默认不要写具体模块名、库名、API 名、分支名、commit 数量、文件名、版本号、函数名、命令名；能抽象表达就抽象表达。\n5. 每条主线只说明三件事：当时在推进什么、为什么值得记、推进结果或当前状态。\n6. 单独提炼“今天想清楚的事”：例如命名调整、架构边界、方案取舍、风险判断、工作方式变化、下一步方向。没有就宁缺毋滥。\n7. 如果日志里出现很多技术实现，请主动向上抽象成“基础设施搭建”“版本同步”“迁移验证”“风险梳理”“方案规划”这类表述。\n8. 如果某些判断只是从日志推断出来的，要明确写“日志显示”或“看起来”。\n9. 不要杜撰日志里没有出现的事实。\n10. 篇幅克制，提纲应该明显短于原始聊天记录。\n\n输出结构：\n# Daily Outline - {report.report_date.isoformat()}\n## 今天在推进什么\n- 每条 1 到 2 句话\n## 今天想清楚的事\n- 每条 1 到 2 句话，没有就少写\n## 顺手处理的事\n- 每条 1 句话\n## 还没收尾的事\n- 每条 1 句话\n\n下面是按时间整理的真实聊天记录：\n\n{timeline_source}\n"""
+def build_daily_outline_prompt(report: DailyReport, timeline_source_path: Path) -> str:
+    date_str = report.report_date.isoformat()
+    return f'''你是我的工作日志压缩助手。请先读取文件 {timeline_source_path}，然后根据里面来自 Codex、Claude Code、Kiro 的真实聊天记录，产出一份适合写个人工作日记的提纲，日期是 {date_str}。
+
+目标：
+- 先把原始聊天记录压缩成少量主线和少量次要事项。
+- 不只提炼做了什么，还要提炼今天的判断、思路变化、方向感。
+- 这一步不是正式日记，而是给正式日记做素材压缩。
+
+要求：
+1. 使用中文 Markdown 输出，直接从标题开始，不要写开场白。
+2. 只保留当天最重要的 2 到 4 条主线；其余事情放到顺手处理和未收尾里，一条一句话。
+3. 不要按早上/下午/晚上平铺叙述，也不要变成流水账；优先按今天主要围绕哪几件事打转来归并。
+4. 默认不要写具体模块名、库名、API 名、分支名、commit 数量、文件名、版本号、函数名、命令名；能抽象表达就抽象表达。
+5. 每条主线只说明三件事：当时在推进什么、为什么值得记、推进结果或当前状态。
+6. 单独提炼今天想清楚的事：例如命名调整、架构边界、方案取舍、风险判断、工作方式变化、下一步方向。没有就宁缺毋滥。
+7. 如果日志里出现很多技术实现，请主动向上抽象成基础设施搭建、版本同步、迁移验证、风险梳理、方案规划这类表述。
+8. 如果某些判断只是从日志推断出来的，要明确写日志显示或看起来。
+9. 不要杜撰日志里没有出现的事实。
+10. 篇幅克制，提纲应该明显短于原始聊天记录。
+
+输出结构：
+# Daily Outline - {date_str}
+## 今天在推进什么
+- 每条 1 到 2 句话
+## 今天想清楚的事
+- 每条 1 到 2 句话，没有就少写
+## 顺手处理的事
+- 每条 1 句话
+## 还没收尾的事
+- 每条 1 句话
+'''
 
 
-def build_weekly_prompt(report: DailyReport, summary_source: str) -> str:
-    return f"""你是我的工作复盘助手。请只根据下面这些来自 Codex 和 Claude Code 的真实聊天记录，整理出一份适合做“周复盘素材”的总结，日期是 {report.report_date.isoformat()}。\n\n要求：\n1. 使用中文 Markdown 输出。\n2. 以目录/项目为主线进行归并，同一目录下的多次会话要合并叙述。\n3. 重点提炼：做了哪些分析、排查、修改、研究、决策、验证。\n4. 输出风格偏总结、偏提炼，适合后续做周报或周复盘。\n5. 如果某些结论只是从日志推断出来的，要明确写“日志显示”或“看起来”。\n6. 不要杜撰日志中没有出现的事实。\n\n输出结构：\n# Weekly-ready Summary - {report.report_date.isoformat()}\n## 今天做了什么\n## 按目录回顾\n## 关键产出 / 结论\n## 后续线索\n\n下面是按目录整理的源数据：\n\n{summary_source}\n"""
+def build_weekly_prompt(report: DailyReport, summary_source_path: Path) -> str:
+    date_str = report.report_date.isoformat()
+    return f'''你是我的工作复盘助手。请先读取文件 {summary_source_path}，然后根据里面来自 Codex、Claude Code、Kiro 的真实聊天记录，整理出一份适合做周复盘素材的总结，日期是 {date_str}。
+
+要求：
+1. 使用中文 Markdown 输出。
+2. 以目录/项目为主线进行归并，同一目录下的多次会话要合并叙述。
+3. 重点提炼：做了哪些分析、排查、修改、研究、决策、验证。
+4. 输出风格偏总结、偏提炼，适合后续做周报或周复盘。
+5. 如果某些结论只是从日志推断出来的，要明确写日志显示或看起来。
+6. 不要杜撰日志中没有出现的事实。
+
+输出结构：
+# Weekly-ready Summary - {date_str}
+## 今天做了什么
+## 按目录回顾
+## 关键产出 / 结论
+## 后续线索
+'''
 
 
 def run_ai_summary(
@@ -858,10 +906,16 @@ def run_ai_summary(
     if summarizer == 'none':
         return ''
     if summarizer == 'claude':
-        cmd = ['claude', '-p', '--output-format', 'text', '--permission-mode', 'dontAsk', '--tools', '']
+        # 使用 --dangerously-skip-permissions 让 claude 能读取临时文件
+        cmd = ['claude', '-p', '--output-format', 'text', '--dangerously-skip-permissions']
         if model:
             cmd.extend(['--model', model])
-        proc = subprocess.run(cmd, input=prompt, text=True, capture_output=True, check=True)
+        proc = subprocess.run(cmd, input=prompt, text=True, capture_output=True)
+        if proc.returncode != 0:
+            print(f"[claude error] returncode={proc.returncode}", file=sys.stderr)
+            print(f"[claude error] stderr: {proc.stderr}", file=sys.stderr)
+            print(f"[claude error] stdout: {proc.stdout[:500] if proc.stdout else 'None'}", file=sys.stderr)
+            proc.check_returncode()  # 触发原来的异常
         return proc.stdout.strip()
     if summarizer == 'codex':
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1090,9 +1144,12 @@ def main() -> int:
             write_text(temp_root / 'summary-source.md', summary_source)
             write_text(temp_root / 'sessions.json', json.dumps(report_to_dict(report), ensure_ascii=False, indent=2))
 
-            daily_outline_prompt = build_daily_outline_prompt(report, timeline_source)
+            timeline_source_path = temp_root / 'timeline-source.md'
+            summary_source_path = temp_root / 'summary-source.md'
+
+            daily_outline_prompt = build_daily_outline_prompt(report, timeline_source_path)
             report.ai_daily_outline = run_ai_summary(daily_outline_prompt, args.summarizer, project_root, args.summary_model)
-            weekly_prompt = build_weekly_prompt(report, summary_source)
+            weekly_prompt = build_weekly_prompt(report, summary_source_path)
             report.ai_weekly_ready = run_ai_summary(weekly_prompt, args.summarizer, project_root, args.summary_model)
 
         month_link = target_day.strftime('%Y-%m')
