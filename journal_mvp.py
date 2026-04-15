@@ -76,6 +76,54 @@ class TokenUsage:
         return ', '.join(parts) if parts else 'n/a'
 
 
+def format_token_number(n: int | float) -> str:
+    """Format number: <1M uses comma separator, >=1M uses M, >=1B uses B."""
+    if n >= 1_000_000_000:
+        return f'{n / 1_000_000_000:.2f}B'
+    if n >= 1_000_000:
+        return f'{n / 1_000_000:.2f}M'
+    if isinstance(n, float):
+        return f'{n:.2f}'
+    return f'{n:,}'
+
+
+def build_token_frontmatter(report: 'DailyReport') -> str:
+    """Build YAML frontmatter with token statistics."""
+    month_link = report.report_date.strftime('%Y-%m')
+    lines = ['---', f'month: "[[{month_link}]]"', 'tokens:']
+
+    # Claude Code tokens (has detailed breakdown)
+    claude_usage = TokenUsage()
+    for session in report.claude_sessions:
+        claude_usage = claude_usage.merge(session.token_usage)
+    lines.append('  claude_code:')
+    lines.append(f'    input: {format_token_number(claude_usage.input_tokens)}')
+    lines.append(f'    output: {format_token_number(claude_usage.output_tokens)}')
+    if claude_usage.cached_tokens:
+        lines.append(f'    cached: {format_token_number(claude_usage.cached_tokens)}')
+    if claude_usage.reasoning_tokens:
+        lines.append(f'    reasoning: {format_token_number(claude_usage.reasoning_tokens)}')
+    lines.append(f'    total: {format_token_number(claude_usage.total_tokens)}')
+
+    # Codex tokens (only total available)
+    codex_total = sum(s.token_usage.total_tokens for s in report.codex_sessions)
+    lines.append('  codex:')
+    lines.append(f'    total: {format_token_number(codex_total)}')
+
+    # Kiro credits
+    kiro_credits = sum(s.kiro_credits for s in report.kiro_sessions)
+    if kiro_credits:
+        lines.append('  kiro:')
+        lines.append(f'    credits: {format_token_number(kiro_credits)}')
+
+    # Total
+    total = report.total_tokens()
+    lines.append(f'  total: {format_token_number(total)}')
+
+    lines.append('---')
+    return '\n'.join(lines) + '\n'
+
+
 @dataclass
 class TranscriptMessage:
     timestamp: datetime
@@ -1152,8 +1200,7 @@ def main() -> int:
             weekly_prompt = build_weekly_prompt(report, summary_source_path)
             report.ai_weekly_ready = run_ai_summary(weekly_prompt, args.summarizer, project_root, args.summary_model)
 
-        month_link = target_day.strftime('%Y-%m')
-        frontmatter = f'---\nmonth: "[[{month_link}]]"\n---\n'
+        frontmatter = build_token_frontmatter(report)
         write_text(outline_output_path, frontmatter + report.ai_daily_outline + '\n')
         write_text(weekly_output_path, frontmatter + report.ai_weekly_ready + '\n')
 
